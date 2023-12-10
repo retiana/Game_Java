@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Tic Tac Toe</title>
+
+</head>
+<body>
+<h1>Tic Tac Toe</h1>
+<label for="boardSize">Please choose the board size you want to play ( 3 for 3x3, 5 for 5x5, 9 for 9x9): </label>
+<input type="number" id="boardSize" min="3" value="3">
+<button onclick="startGame()">Start Game</button>
+
+<table id="gameBoard"></table>
+<div id="inputSlotArea" style="display: none;">
+    <label for="inputSlot">Enter a slot number for Player <span id="playerSymbolDisplay"></span>:</label>
+    <input type="number" id="inputSlot">
+    <button onclick="handleInput()">Submit</button>
+</div>
+
+<script>
+    let playerSymbol = 'A';
+    let cells = [];
+    let boardSize = 0;
+    let winner = null;
+
+    function startGame() {
+        boardSize = document.getElementById("boardSize").value;
+
+        fetch(`/game/start?size=${boardSize}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ size: boardSize })
+        })
+            .then(response => response.json())
+            .then(data => {
+                cells = data.cells;
+                printGameBoard();
+                toggleInputArea();
+                playGame();
+            });
+    }
+
+    async function playGame() {
+        while (winner === null) {
+            printGameBoard();
+            const inputSlot = await getUserInput();
+            if (inputSlot === null) {
+                break;
+            }
+            await makeMove(Number(inputSlot));
+        }
+    }
+
+    async function getUserInput() {
+        const inputSlotArea = document.getElementById("inputSlotArea");
+        inputSlotArea.style.display = "block";
+        const playerSymbolDisplay = document.getElementById("playerSymbolDisplay");
+        playerSymbolDisplay.textContent = playerSymbol;
+
+        return new Promise(resolve => {
+            document.getElementById('inputSlot').focus();
+            document.getElementById('inputSlot').value = '';
+
+            document.getElementById('inputSlot').addEventListener('change', function () {
+                const slot = parseInt(this.value);
+                if (slot > 0 && slot <= boardSize * boardSize) {
+                    resolve(slot);
+                }
+            });
+        });
+    }
+
+    async function makeMove(slot) {
+        const response = await fetch(`/game/move?board=${cells.join(",")}&boardSize=${boardSize}&slot=${slot}&playerSymbol=${playerSymbol}`, {
+            method: 'POST'
+        });
+
+        if (response.ok) {
+            const moveStatus = await response.text();
+            console.log('Move status:', moveStatus);
+
+            if (moveStatus.includes('Congratulations')) {
+                winner = playerSymbol;
+                const winnerPlayer = moveStatus.includes('Player A') ? 'Player A' : 'Player B';
+                alert(`Congratulations! The winner is ${winnerPlayer}`);
+            } else {
+                cells[slot - 1] = playerSymbol;
+                playerSymbol = playerSymbol === 'A' ? 'B' : 'A';
+                printGameBoard();
+            }
+        } else {
+            console.error('Failed to make move');
+        }
+    }
+
+    function printGameBoard() {
+        const gameBoard = document.getElementById("gameBoard");
+        gameBoard.innerHTML = "";
+
+        for (let i = 0; i < boardSize; i++) {
+            const row = gameBoard.insertRow();
+
+            for (let j = 0; j < boardSize; j++) {
+                const cellIndex = i * boardSize + j;
+                const cellValue = cells[cellIndex];
+
+                const cell = row.insertCell();
+                cell.textContent = ` ${cellValue} `;
+            }
+        }
+    }
+
+    function toggleInputArea() {
+        const inputSlotArea = document.getElementById("inputSlotArea");
+        const playerSymbolDisplay = document.getElementById("playerSymbolDisplay");
+
+        playerSymbolDisplay.textContent = playerSymbol;
+        inputSlotArea.style.display = "none";
+    }
+</script>
+</body>
+</html>
